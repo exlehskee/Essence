@@ -1,0 +1,188 @@
+-- ESSENCE PRIVATE - Executor-Compatible UI Library
+-- No ModuleScripts, one LocalScript, standalone
+
+local EssenceUI = {}
+EssenceUI.__index = EssenceUI
+
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+
+-- Helper to create objects
+local function create(class, props)
+    local inst = Instance.new(class)
+    for k,v in pairs(props) do
+        inst[k] = v
+    end
+    return inst
+end
+
+-- Random ID for instances
+local function uid()
+    return HttpService:GenerateGUID(false)
+end
+
+-- Dragging Function
+local function makeDraggable(frame)
+    local dragToggle, dragStart, startPos
+    
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragToggle = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragToggle = false
+                end
+            end)
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragToggle and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+                                       startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+-- MAIN UI CONSTRUCTOR
+function EssenceUI:CreateWindow(title, version)
+    local self = setmetatable({}, EssenceUI)
+
+    local ScreenGui = create("ScreenGui", {
+        Name = "EssenceUI_" .. uid(),
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Global,
+        Parent = game.CoreGui
+    })
+
+    local Main = create("Frame", {
+        Name = "Main",
+        Size = UDim2.new(0, 600, 0, 400),
+        Position = UDim2.new(0.5, -300, 0.5, -200),
+        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+        BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Parent = ScreenGui
+    })
+    create("UICorner", { CornerRadius = UDim.new(0, 10), Parent = Main })
+
+    makeDraggable(Main)
+
+    -- Header
+    local Header = create("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 40),
+        BackgroundTransparency = 1,
+        Text = title .. "  |  " .. version,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        Font = Enum.Font.GothamBold,
+        TextSize = 20,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Position = UDim2.new(0, 10, 0, 0),
+        Parent = Main
+    })
+
+    -- Tab Container
+    local TabButtons = create("Frame", {
+        Size = UDim2.new(0, 100, 1, -40),
+        Position = UDim2.new(0, 0, 0, 40),
+        BackgroundTransparency = 1,
+        Parent = Main
+    })
+
+    local TabsContainer = create("Frame", {
+        Size = UDim2.new(1, -100, 1, -40),
+        Position = UDim2.new(0, 100, 0, 40),
+        BackgroundTransparency = 1,
+        Parent = Main
+    })
+
+    local tabs = {}
+
+    function self:CreateTab(name)
+        local TabButton = create("TextButton", {
+            Size = UDim2.new(1, 0, 0, 40),
+            BackgroundTransparency = 1,
+            Text = name,
+            TextColor3 = Color3.fromRGB(200, 200, 255),
+            Font = Enum.Font.Gotham,
+            TextSize = 14,
+            Parent = TabButtons
+        })
+
+        local Content = create("ScrollingFrame", {
+            Size = UDim2.new(1, 0, 1, 0),
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            ScrollBarThickness = 4,
+            BackgroundTransparency = 1,
+            Visible = false,
+            Parent = TabsContainer
+        })
+
+        local Layout = create("UIListLayout", {
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Padding = UDim.new(0, 6),
+            Parent = Content
+        })
+
+        TabButton.MouseButton1Click:Connect(function()
+            for _, t in pairs(tabs) do
+                t.Content.Visible = false
+            end
+            Content.Visible = true
+        end)
+
+        local tab = {
+            Name = name,
+            Button = TabButton,
+            Content = Content
+        }
+
+        function tab:Toggle(label, default, callback)
+            local ToggleHolder = create("Frame", {
+                Size = UDim2.new(1, -10, 0, 30),
+                BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+                Parent = Content
+            })
+            create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = ToggleHolder })
+
+            local ToggleLabel = create("TextLabel", {
+                Text = label,
+                Size = UDim2.new(1, -60, 1, 0),
+                BackgroundTransparency = 1,
+                TextColor3 = Color3.fromRGB(255, 255, 255),
+                Font = Enum.Font.Gotham,
+                TextSize = 14,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = ToggleHolder
+            })
+
+            local ToggleButton = create("TextButton", {
+                Text = "",
+                Size = UDim2.new(0, 40, 0, 20),
+                Position = UDim2.new(1, -50, 0.5, -10),
+                BackgroundColor3 = default and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(80, 80, 80),
+                Parent = ToggleHolder
+            })
+            create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = ToggleButton })
+
+            local state = default
+
+            ToggleButton.MouseButton1Click:Connect(function()
+                state = not state
+                ToggleButton.BackgroundColor3 = state and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(80, 80, 80)
+                pcall(callback, state)
+            end)
+        end
+
+        table.insert(tabs, tab)
+        return tab
+    end
+
+    return self
+end
+
+return EssenceUI
